@@ -1,2 +1,5 @@
 # Brooke_MSc
-Repository where all of my data and files for my masters project will be kept
+These files contain the code used to:
+1) Identify the candidate lncRNA targets
+2) Design antisense oligonucleotides against lncRNA sequences of interest
+
