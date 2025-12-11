@@ -1,0 +1,52 @@
+---
+title: "Isolating desmoplastic stroma cluster from labelled_markers_sorted"
+author: "Brooke Morrison"
+date: "2024-03-20"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Here I aim to manipulate the expression data organised by holly "labelled_markers_sorted.RDS" so that I isolate the expression date from only the genes in the desmoplastic stroma cluster (for now). Within the desmoplastic stroma is the greatest chance of finding immune cells. Potentially may expand this to look into cancer-associated fibroblasts and mesenchymal stromal cells as well - they aren't immune cells, but interact with them.
+
+```{r Loading expression data}
+# Loading in the expression data
+expressionData = readRDS("/Volumes/archive/diermeierlab/Brooke_MSc/data/Holly_data/labeled_markers_sorted.RDS") 
+write.csv(expressionData, file = "/Volumes/archive/diermeierlab/Brooke_MSc/data/Holly_data/labeled_markers_sorted.csv" )
+```
+
+Attempting to filter the rows from this large table of expression data to make a new data frame containing only the rows that are labelled as the cluster 'Desmoplastic stroma'.
+
+```{r Isolating desmoplastic stroma cluster}
+desmo_stroma_exprs_data <- subset(expressionData, cluster == "Desmoplastic stroma")
+```
+
+Now that I have refined the data set, I notice that the fold changes in the table are both postive and negative. I am making the assumption that a positive fold change means that the expression is higher in the desmoplastic stroma compared to the matched normal resection ends. I want to refine the table further so that only positive fold changes are included (because we are looking for up-regulated targets).
+
+```{r Postive fold changes for desmoplastic stroma}
+pos_FC_desmo_stoma_exprs_data <- desmo_stroma_exprs_data[desmo_stroma_exprs_data$avg_log2_FC > 0, ]
+pos_FC_desmo_stoma_exprs_data
+```
+
+Since it's not working to only include positive fold changes in the table, I will arrange the table so that the rows go by largest -> smallest average log2 fold change
+
+```{r Ordering desmoplastic stroma rows by descending FC}
+descending_desmo_FC_order <- desmo_stroma_exprs_data[order(-desmo_stroma_exprs_data$`avg_log2FC`), ]
+```
+
+Going to use the head() so that I have a table with only the first 12 rows (those are the only positive fold changes) and then see if I can name that as a new object.
+
+```{r New table with only pos FC}
+pos_FC_desmo_stoma_exprs_data <- head(descending_desmo_FC_order, 12)
+pos_FC_desmo_stoma_exprs_data
+
+write.csv(pos_FC_desmo_stoma_exprs_data, "/Volumes/archive/diermeierlab/Brooke_MSc/data/pos_FC_desmo_stoma_exprs_data.txt")
+```
+
+This has given me 12 genes that are up-regulated in the desmoplastic stroma of both patients. From here I will conduct a literature search of the 12 genes, seeing if any are known to be within immune cells. I should probably also subset this data by lncRNA to see whether any of them are actually targets we are looking for. If not, I could always conduct the lncRNA sub-setting on all differentially expressed genes (up/down-regulated) in the D.S. If nothing comes of this, will need to look into another cluster.
+Consulting the literature revealed none of these are lncRNAs, and that most are mitochondrial.
+
+I will now take a couple of steps back, and try to subset lncRNAs from all of the desmoplastic stroma data:
+

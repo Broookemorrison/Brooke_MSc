@@ -1,0 +1,61 @@
+---
+title: "Subsetting the lncRNAs from public macrophage data"
+author: "Brooke Morrison"
+date: "2024-04-28"
+output: html_document
+---
+```{r, message=FALSE}
+# Loading libraries
+library(tidyverse)
+library(dplyr)
+library(rtracklayer)
+```
+
+### Reading in the dataset as publicData3
+```{r reading this in as publicData3}
+publicData3 <- readxl::read_excel("/Volumes/archive/diermeierlab/Brooke_MSc/data/Dif_exp_genes_macrophages.xlsx", sheet = "Table S3A", range = "A2:K1818" )
+head(publicData3, 3)
+```
+
+### Loading in the lncRNA annotation file
+```{r}
+lncRNAs <- rtracklayer::import('/Volumes/archive/diermeierlab/Holly/Reference_gencode_annotation_files/gencode.v41.long_noncoding_RNAs.gtf')
+lncRNAs <- as.data.frame(lncRNAs)
+lncRNAs <- subset(lncRNAs[10:12])
+lncRNAs <- distinct(lncRNAs)
+saveRDS(lncRNAs, file = "/Volumes/archive/diermeierlab/Brooke_MSc/output/lncRNAs_annotation_list.RDS")
+head(lncRNAs, 3)
+```
+### Attempting to subset publicData3 for lncRNAs
+```{r}
+typeof(publicData3) # It's a list -> need to convert to a data frame
+publicData3_df <- as.data.frame(publicData3)
+
+lncRNA_gene_names <- lncRNAs$gene_name
+
+row.names(publicData3_df) <- publicData3_df$Gene_name
+lncRNA_macrophages <- publicData3_df[lncRNA_gene_names, ]
+lncRNA_macrophages <- na.omit(lncRNA_macrophages)
+
+nrow(lncRNA_macrophages)
+# Doing this left me with 23 rows.
+
+# Going to use the intersect function to see if there are any common names between the two - used this after the first try when my code (before converting publicData3 to a df) returned 0 rows.
+shared_gene_names <- intersect(lncRNAs$gene_name, publicData3$Gene_name)
+shared_gene_names
+```
+Here, directly trying to subset publicData3 by lncRNA_gene_names to produce lncRNA_macrophages was unsuccessful (the resulting data frame was full of NA's). However when I used the intersect function to compare if any of the gene names were shared between the two data frames (i.e. the annotation list and the genes with expression data in the macrophages) - it returned 23 gene names. Does this not mean there are 23 lncRNAs with expression data from macrophages? I realised publicData3 was a list, so changed it to a data frame, and added an extra line of code (as suggested by chatgpt), and it worked - 23 rows in lncRNA_macrophages!
+
+### Processing of lncRNA_macrophages  
+```{r}
+TE_macrophage_lncs <- subset(lncRNA_macrophages, Group == "Tumor-enriched macrophages")
+TE_macrophage_lncs <- TE_macrophage_lncs %>% arrange(desc(Log2_FC))
+TE_macrophage_lncs <- TE_macrophage_lncs[ ,1:6]
+NE_macrophage_lncs <- subset(lncRNA_macrophages, Group == "Normal-enriched macrophages")
+NE_macrophage_lncs <- NE_macrophage_lncs %>% arrange(Log2_FC)
+NE_macrophage_lncs <- NE_macrophage_lncs[ ,1:6]
+
+TE_macrophage_lncs # upregulated in tumour-enriched macrophages
+NE_macrophage_lncs # upregulated in normal-enriched macrophages
+```
+

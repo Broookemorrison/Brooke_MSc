@@ -1,0 +1,31 @@
+---
+title: "Public data processing"
+author: "Brooke Morrison"
+date: "2024-04-22"
+output: html_document
+---
+## Investigating GSE225163_RNAseq_count.csv
+```{r Reading in and viewing layout of public data}
+publicData <- read.csv("/Volumes/archive/diermeierlab/Brooke_MSc/GSE255163_RNAseq_count.csv")
+head(publicData)
+```
+Every row is labelled by a number, with  an ensembl gene ID (Name column) and gene name (description column) being in the first 1&2 or 2&3 columns (I think the first column might be the numbering). All other columns are the patient number and whether the sample was LM or PT. However the order appears seeminlgy random:
+- Going to change the names of the Name and Description columns to gene_id and gene_name
+- Then, going to see if I can sort out the columns of patient tumour samples
+- Thought: has the differential expression only been conducted in PT relative to LM OR has it also been in comparison to normal adjacent tissue (what we want!!).
+
+## Investigating CRC.Leukocyte.10x.TPM.txt
+```{r reading in this as publicData2}
+publicData2 <- read.table("/Volumes/archive/diermeierlab/Brooke_MSc/CRC.Leukocyte.10x.TPM.txt", header = TRUE, sep = " ")
+head(publicData2)
+dim(publicData2)
+
+```
+Each column is labelled with an identifier e.g. P_N_P1025_00034. Need to figure out what this stands for.
+
+### Investigating their table of differentially expressed genes in macrophages from 10x dataset (tumour enriched vs normal)
+```{r reading this in as publicData3}
+publicData3 <- readxl::read_excel("/Volumes/archive/diermeierlab/Brooke_MSc/Dif_exp_genes_macrophages.xlsx", sheet = "Table S3A", range = "A2:K1818" )
+head(publicData3)
+```
+

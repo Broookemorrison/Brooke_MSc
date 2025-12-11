@@ -1,0 +1,34 @@
+---
+title: "Isolating MSC cluster expression data from labelled_markes_sorted"
+author: "Brooke Morrison"
+date: "2024-03-26"
+output: html_document
+---
+
+Here I will follow the code I used to isolate the desmoplastic stroma cluster expression data, and apply it to the mesenchymal stem cell cluster.
+
+```{r Loading expression data}
+# Loading in the expression data, and getting exact names of the clusters
+expressionData = readRDS("/Volumes/archive/diermeierlab/Brooke_MSc/data/Holly_data/labeled_markers_sorted.RDS") 
+unique_clusters <- unique(expressionData$cluster)
+print(unique_clusters)
+```
+
+Filtering to isolate mesenchymal stem cell cluster
+
+```{r Filtering expression data for MSC cluster}
+MSC_exprs_data <- subset(expressionData, cluster == "MSCs")
+```
+
+Wanting to isolate the genes that are upregulated (positive fold change)
+
+```{r Ordering MSCs by descending FC order}
+descending_MSC_FC_order <- MSC_exprs_data[order(-MSC_exprs_data$`avg_log2FC`), ]
+```
+```{r Isolating positive FC values from this}
+num_pos_FC <- sum(descending_MSC_FC_order$avg_log2FC > 0)
+print(num_pos_FC)
+pos_FC_MSC_exprs_data <- head(descending_MSC_FC_order, 381)
+
+write.csv(pos_FC_MSC_exprs_data, "/Volumes/archive/diermeierlab/Brooke_MSc/data/pos_FC_MSC_exprs_data.txt")
+```

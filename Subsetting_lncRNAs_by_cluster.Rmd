@@ -1,0 +1,83 @@
+---
+title: "Subsetting lncRNAs from the ST clusters"
+author: "Brooke Morrison"
+date: "2024-04-29"
+output: html_document
+---
+Here I will be using the lncRNA_annotation_list to see whether any lncRNAs are present in the DE genes of the MSC, CAF, or desmoplastic stroma clusters.
+```{r}
+# Load packages
+library(dplyr)
+```
+```{r}
+# Load cluster expression data
+pos_FC_MSC_exprs_data <- read.csv("/Volumes/archive/diermeierlab/Brooke_MSc/data/pos_FC_MSC_exprs_data.txt")
+pos_FC_CAF_exprs_data <- read.csv("/Volumes/archive/diermeierlab/Brooke_MSc/data/pos_FC_CAF_exprs_data.txt")
+pos_FC_desmo_stoma_exprs_data <- read.csv("/Volumes/archive/diermeierlab/Brooke_MSc/data/pos_FC_desmo_stoma_exprs_data.txt")
+```
+#### Get lncRNA annotation list 
+```{r}
+lncRNAs <- rtracklayer::import('/Volumes/archive/diermeierlab/Holly/Reference_gencode_annotation_files/gencode.v41.long_noncoding_RNAs.gtf')
+lncRNAs <- as.data.frame(lncRNAs)
+lncRNAs <- subset(lncRNAs[10:12]) # taking gene ID, gene type, and gene name
+lncRNAs <- distinct(lncRNAs)
+saveRDS(lncRNAs, file = "/Volumes/archive/diermeierlab/Brooke_MSc/output/lncRNAs_annotation_list.RDS")
+```
+
+### Mesenchymal stem cell cluster
+```{r}
+# Loading in MSC cluster data
+pos_FC_MSC_exprs_data <- readRDS("pos_FC_MSC_exprs_data.rds")
+
+# Making sure MSC data is in correct format
+typeof(pos_FC_MSC_exprs_data)
+MSC_cluster_data <- as.data.frame(pos_FC_MSC_exprs_data)
+
+# Extracting gene names from lncRNAs
+lncRNA_gene_names <- lncRNAs$gene_name
+typeof(lncRNA_gene_names)
+
+# Are there any shared? = there are two (RGS5 and CYTOR)
+MSC_cluster_lncs <- intersect(MSC_cluster_data$gene, lncRNAs$gene_name)
+MSC_cluster_lncs
+
+# Combining the two
+MSC_cluster_lncRNAs <- MSC_cluster_data[MSC_cluster_data$gene %in% lncRNA_gene_names, ]
+MSC_cluster_lncRNAs
+```
+
+There are two lncRNAs (based on subsetting by name) in the MSC cluster: RGS5 and CYTOR
+
+### Cancer-associated fibroblast cluster
+```{r}
+# Getting data in right format
+typeof(pos_FC_CAF_exprs_data)
+CAF_cluster_data <- as.data.frame(pos_FC_CAF_exprs_data)
+
+# Are there any shared? = doesn't look like it
+CAF_cluster_lncs <- intersect(CAF_cluster_data$gene, lncRNAs$gene_name)
+CAF_cluster_lncs
+
+# Attempting to combine
+CAF_cluster_lncRNAs <- CAF_cluster_data[CAF_cluster_data$gene %in% lncRNA_gene_names, ]
+CAF_cluster_lncRNAs
+```
+
+There are no lncRNAs (based on subsetting by name) in the CAF cluster.
+
+### Desmoplastic stroma cluster
+```{r}
+# Getting data in right format
+typeof(pos_FC_desmo_stoma_exprs_data)
+DS_cluster_data <- as.data.frame(pos_FC_desmo_stoma_exprs_data) 
+
+# Are there any shared? = doesn't look like it
+DS_cluster_lncs <- intersect(DS_cluster_data$gene, lncRNAs$gene_name)
+DS_cluster_lncs
+
+# Attempting to combine
+DS_cluster_lncRNAs <- DS_cluster_data[DS_cluster_data$gene %in% lncRNA_gene_names, ]
+DS_cluster_lncRNAs
+```
+There are no lncRNAs (based on subsetting by name) in the DS cluster.
+

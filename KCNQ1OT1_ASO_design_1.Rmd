@@ -1,0 +1,133 @@
+---
+title: "KCNQ1OT1 Exon 1 ASO design"
+author: "Brooke Morrison"
+date: "2024-05-28"
+output: html_document
+---
+
+In this document I am taking the Sfold output generated for exon 1 of KCNQ1OT1, filtering it based on the ASO pipeline from Zohaib, and saving it as a fasta file. 
+
+```{r, message = FALSE}
+# Loading packages
+library(stringr)
+library(Biostrings)
+```
+
+```{r}
+# Loading in data
+Sfold_unfiltered4 <- read.table("/Volumes/archive/diermeierlab/Brooke_MSc/data/KCNQ1OT1_general_output_exon1/output/oligo.txt", header = FALSE, sep = "", fill = TRUE)
+
+# Labeling the rows
+rownames(Sfold_unfiltered4) <- Sfold_unfiltered4[ , 1]
+Sfold_unfiltered4 <- Sfold_unfiltered4[, -1]
+head(Sfold_unfiltered4)
+nrow(Sfold_unfiltered4) 
+```
+
+```{r}
+# Removing GGGG indicator
+processed_sfold_4 <- Sfold_unfiltered4[ , -6]
+
+# Going to add column labels
+colnames(processed_sfold_4) <- c("Target position (start-end)", "Target sequence (5'-3')", "Antisense oligo (5'-3')", "GC content", "Oligo binding energy (kcal/mol")
+head(processed_sfold_4)
+```
+
+```{r}
+# Filtering for GC content 40-60%
+processed_sfold_4 <- processed_sfold_4[processed_sfold_4[, 4] >= 40 & processed_sfold_4[, 4] <= 60, ]
+nrow(processed_sfold_4) #205
+```
+
+```{r}
+# Filtering for binding energy less than -8
+processed_sfold_4 <- processed_sfold_4[processed_sfold_4[, 5] < -8, ]
+head(processed_sfold_4)
+nrow(processed_sfold_4) #59
+```
+There are 59 ASO options here with binding energies less than -8
+
+```{r}
+# Looking for diminishing and enhancing motifs
+enhancing_motifs <- c("CCAC", "TCCC", "ACTC", "GCCA", "CTCT")
+diminishing_motifs <- c("GGGG", "ACTG", "AAA", "TAA")
+
+# Are any enhancing motifs present?
+processed_sfold_4$EnhancingMotif_Present <- sapply(processed_sfold_4$`Antisense oligo (5'-3')`, function(seq) {
+  any(str_detect(seq, enhancing_motifs))
+})
+
+# Are any diminishing motifs present?
+processed_sfold_4$DiminishingMotif_Present <- sapply(processed_sfold_4$`Antisense oligo (5'-3')`, function(seq) {
+  any(str_detect(seq, diminishing_motifs))
+})
+
+# Removing those with diminishing motifs present
+processed_sfold_4 <- processed_sfold_4[processed_sfold_4$DiminishingMotif_Present == FALSE, ]
+nrow(processed_sfold_4) #55
+
+# Going to only keep those with enhancing motifs
+processed_sfold_4 <- processed_sfold_4[processed_sfold_4$EnhancingMotif_Present == TRUE, ]
+nrow(processed_sfold_4)
+```
+There are 55 ASOs after those with diminsihing motifs were removed, and 24 with enhancing motifs
+
+Are any of these also present in oligo_de.out file? - Going to load in this file, and use intersect function to see if any are present in both.
+
+Column 1: starting target position
+Column 2: ending target position
+Column 3: target sequence (5p --> 3p)
+Column 4: antisense oligo (5p --> 3p)
+Column 5: GC content
+Column 6: average unpaired probability for target site nucleotides
+Column 7: binding site disruption energy (kcal/mol)
+
+FILTER CRITERIA: ("<=": less than or equal to)
+                 (">=": greater than or equal to)
+
+ A) 40% <= GC % <= 60%;
+ B) No GGGG in the target sequence;
+ C) Average unpaired probability for target site nucleotides >= 0.5;
+ D) For each peak in the accessibility profile that is above the threshold
+    probability of 0.5, all sites targeted to this same peak are
+    ranked by their average unpaired probability (the higher the better) and
+    at most n sites are selected for each peak, where n is determined by
+    max([width of peak/site length], 2);
+ E) Among sites satisfying criteria A-D, the top 20 unique ones with
+    the highest average unpaired probability are listed.
+
+NOTE:
+ i) The average unpaired probability is used in filter criteria C, D and E to
+    cut down the number of reported sites in order to make the disruption
+    energy calculation manageable on our web servers.
+    
+```{r}
+oligo_de.txt.4 <- read.table("/Volumes/archive/diermeierlab/Brooke_MSc/data/KCNQ1OT1_general_output_exon1/output/oligo_de.txt", header = FALSE, sep = "", fill = TRUE)
+
+colnames(oligo_de.txt.4) <- c("Starting target position", "Ending target position", "target sequence (5'-3')", "Anti-sense oligo (5'-3')", "GC content", "Average unpaired propbability for target site nucleotides", "Binding site disruption energy")
+
+shared_ASOs.4 <- intersect(processed_sfold_4$`Antisense oligo (5'-3')`, oligo_de.txt.4$`Anti-sense oligo (5'-3')`)
+shared_ASOs.4 # six of them
+
+shared_ASO_df.4 <- processed_sfold_4[processed_sfold_4$`Antisense oligo (5'-3')` %in% shared_ASOs.4, ]
+
+shared_ASO_df.4
+```
+There are 6 ASOs.
+
+```{r}
+# Save the output as a fasta file (using Biostrings)
+
+# Putting it into a seq ID, and sequence format
+ASO_df.4 <- data.frame(
+  names = c("Exon1_1", "Exon1_2", "Exon1_3", "Exon1_4", "Exon1_5", "Exon1_6"),
+  sequences = c("CTTCTACTCTCTACCTCCAT", "CCTTCTACTCTCTACCTCCA", "CTCTTCACCCTCCAGACATA", "TCTCTTCACCCTCCAGACAT", "CAACCTCTCTTCACCCTCCA", "AGCTGTGTATTTTTACCCAC")
+)
+
+# Converting df to DNAStringSet object
+sequences <- DNAStringSet(ASO_df.4$sequences)
+names(sequences) <- ASO_df.4$names
+
+# Write DNAStringSet object to FASTA file
+writeXStringSet(sequences, filepath = "KCNQ1OT1_exon1_ASOs.fasta")
+```

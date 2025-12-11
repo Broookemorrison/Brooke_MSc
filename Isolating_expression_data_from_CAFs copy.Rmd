@@ -1,0 +1,36 @@
+---
+title: "Isolating expression data from cancer-associated fibroblast cluster"
+author: "Brooke Morrison"
+date: "2024-03-26"
+output: html_document
+---
+
+Once again, applying code used to isolate desmoplastic stroma and MSC data from the overall expression data to CAF's
+
+```{r Loading expression data}
+# Loading in the expression data, and getting exact names of the clusters
+expressionData = readRDS("/Volumes/archive/diermeierlab/Brooke_MSc/data/Holly_data/labeled_markers_sorted.RDS")
+# head(expressionData)
+write.csv(expressionData, "/Volumes/archive/diermeierlab/Brooke_MSc/data/labeled_markers_sorted.txt")
+```
+
+Filtering to isolate CAF cluster
+
+```{r Filtering for CAF cluster}
+CAF_exprs_data <- subset(expressionData, cluster == "CAFs")
+```                    
+
+Wanting to isolate the genes that are upregulated (positive fold change)
+
+```{r Ordering CAFs by descending FC order}
+descending_CAF_FC_order <- CAF_exprs_data[order(-CAF_exprs_data$`avg_log2FC`), ]
+```
+
+```{r Isolating positive FC values from this}
+num_pos_FC_CAF <- sum(descending_CAF_FC_order$avg_log2FC > 0)
+print(num_pos_FC_CAF)
+pos_FC_CAF_exprs_data <- head(descending_CAF_FC_order, 357)
+head(pos_FC_CAF_exprs_data) 
+write.csv(pos_FC_CAF_exprs_data, "/Volumes/archive/diermeierlab/Brooke_MSc/data/pos_FC_CAF_exprs_data.txt")
+```
+

@@ -1,0 +1,194 @@
+---
+title: "lncRNA Subsetting"
+author: "Brooke Morrison"
+date: "2024-03-21"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+Here I am following along 4_LncRNA_metrics and 6_LncRNA_analysis to subset out lncRNAs from the spatial transcriptomic expression data. I have isolated expression data for the desmoplastic stroma, mesenchymal stem cell, and cancer-associated fibroblast clusters. Once I have subsetted the lncRNAs from the expression data, I will combine it with each of these to hopefully identify putative lncRNA targets in these clusters.
+
+I dont think I actually needed all of this to subset oiut the lncRNAs - dragging just the import of the lncRNA file into subsetting_lncRNAs_by_cluster file and including that in progress report, not this.
+
+```{r, message=FALSE}
+# Loading libraries
+library(Seurat)
+library(tidyverse)
+library(pheatmap)
+```
+
+### (4_LncRNA_metrics)
+
+#### Reading ST data in 
+```{r read data}
+seurat_spatialP1T2 <- readRDS("/Volumes/archive/diermeierlab/Brooke_MSc/data/Holly_data/seurat_labeled_markers_P1T2.RDS")
+seurat_spatialP2T2 <- readRDS("/Volumes/archive/diermeierlab/Brooke_MSc/data/Holly_data/seurat_labeled_markers_P2T2.RDS")
+seurat_spatialP2M <- readRDS("/Volumes/archive/diermeierlab/Brooke_MSc/data/Holly_data/seurat_labeled_markers_P2M.RDS")
+
+#### Get lncRNA annotation list 
+lncRNAs <- rtracklayer::import('/Volumes/archive/diermeierlab/Holly/Reference_gencode_annotation_files/gencode.v41.long_noncoding_RNAs.gtf')
+lncRNAs <- as.data.frame(lncRNAs)
+lncRNAs <- subset(lncRNAs[10:12])
+lncRNAs <- distinct(lncRNAs)
+saveRDS(lncRNAs, file = "/Volumes/archive/diermeierlab/Brooke_MSc/output/lncRNAs_annotation_list.RDS")
+head(lncRNAs)
+head(seurat_spatialP1T2)
+```
+#### Subsetting lncRNA expression data
+```{r lncRNA expression}
+# extract lncRNA names
+lncRNA_gene_names <- lncRNAs$gene_name
+
+# Subset Seurat objects by lncRNA names to make smaller seurat objects with just lncRNA expression info
+seurat_spatialP1T2_lnc <- seurat_spatialP1T2[lncRNA_gene_names,]
+seurat_spatialP2T2_lnc <- seurat_spatialP2T2[lncRNA_gene_names,]
+seurat_spatialP2M_lnc <- seurat_spatialP2M[lncRNA_gene_names,]
+```
+
+### (6_LncRNA_analysis)
+
+#### Finding & saving spatially variable features
+```{r}
+P1T2_spatially_variable_features <- seurat_spatialP1T2@assays[["SCT"]]@meta.features 
+ P1T2_spatially_variable_features$gene_name <- row.names(P1T2_spatially_variable_features)
+P2T2_spatially_variable_features <- seurat_spatialP2T2@assays[["SCT"]]@meta.features 
+  P2T2_spatially_variable_features$gene_name <- row.names(P2T2_spatially_variable_features)
+P2M_spatially_variable_features <- seurat_spatialP2M@assays[["SCT"]]@meta.features 
+ P2M_spatially_variable_features$gene_name <- row.names(P2M_spatially_variable_features)
+ 
+write.csv(P1T2_spatially_variable_features, file = "/Volumes/archive/diermeierlab/Brooke_MSc/output/P1T2_spatially_variable_features.csv")
+write.csv(P1T2_spatially_variable_features, file = "/Volumes/archive/diermeierlab/Brooke_MSc/output/P2T2_spatially_variable_features.csv")
+write.csv(P2M_spatially_variable_features, file = "/Volumes/archive/diermeierlab/Brooke_MSc/output/P2M_spatially_variable_features.csv")
+```
+
+#### Differentially expressed markers per cluster
+```{r DE markers per cluster, message=FALSE}
+DEmarkersP1T2 <- FindAllMarkers(seurat_spatialP1T2, assay = "SCT", random.seed = 876)
+names(DEmarkersP1T2)[7] <- "gene_name"
+DEmarkersP2T2 <- FindAllMarkers(seurat_spatialP2T2, assay = "SCT", random.seed = 876)
+names(DEmarkersP2T2)[7] <- "gene_name"
+DEmarkersP2M <- FindAllMarkers(seurat_spatialP2M, assay = "SCT", random.seed = 876)
+names(DEmarkersP2M)[7] <- "gene_name"
+```
+
+#### Significantly DE markers per cluster
+log2FC >1 (2-fold upregulation), adjpval <0.05. Use this to determine possible cell types per cluster using GPT-4.
+```{r}
+sigDEmarkersP1T2 <- subset(DEmarkersP1T2, subset = avg_log2FC > 1  & p_val_adj < 0.05)
+sigDEmarkersP2T2 <- subset(DEmarkersP2T2, subset = avg_log2FC > 1  & p_val_adj < 0.05)
+sigDEmarkersP2M <- subset(DEmarkersP2M, subset = avg_log2FC > 1  & p_val_adj < 0.05)
+```
+
+#### Less significant DE markers per cluster
+log2FC >0.6 (1.5-fold upregulation), adjpval <0.05.
+```{r less sig DE markers per cluster}
+less_sigDEmarkersP1T2 <- subset(DEmarkersP1T2, subset = avg_log2FC > 0.6  & p_val_adj < 0.05)
+less_sigDEmarkersP2T2 <- subset(DEmarkersP2T2, subset = avg_log2FC > 0.6  & p_val_adj < 0.05)
+less_sigDEmarkersP2M <- subset(DEmarkersP2M, subset = avg_log2FC > 0.6  & p_val_adj < 0.05)
+```
+
+#### Finding spatially variable lncRNAs 
+```{r spatVar lncs}
+P1T2_spatially_variable_lncRNAs <- na.omit(as.data.frame(inner_join(P1T2_spatially_variable_features, lncRNAs, by="gene_name"))) ## ensembl sort by thus column
+P2T2_spatially_variable_lncRNAs <- na.omit(as.data.frame(inner_join(P2T2_spatially_variable_features, lncRNAs, by="gene_name")))
+P2M_spatially_variable_lncRNAs <- na.omit(as.data.frame(inner_join(P2M_spatially_variable_features, lncRNAs, by="gene_name")))
+
+# Subset the significant spatially variable lncRNAs, also get rid of negative values (i.e. significantly dispersed rather than clustered)
+P1T2_sig_spatially_variable_lncRNAs <- subset(P1T2_spatially_variable_lncRNAs, subset = MoransI_p.value < 0.05)
+P2T2_sig_spatially_variable_lncRNAs <- subset(P2T2_spatially_variable_lncRNAs, subset = MoransI_p.value < 0.05)
+P2M_sig_spatially_variable_lncRNAs <- subset(P2M_spatially_variable_lncRNAs, subset = MoransI_p.value < 0.05)
+```
+
+#### Find all significant differentially expressed lncRNAs per cluster
+p= 0.05 (not adj_p), no log2FC cutoff.
+```{r sig DE lncs per cluster}
+P1T2_lncRNAs_by_cluster <- inner_join(DEmarkersP1T2, lncRNAs, by="gene_name")
+P2T2_lncRNAs_by_cluster <- inner_join(DEmarkersP2T2, lncRNAs, by="gene_name")
+P2M_lncRNAs_by_cluster <- inner_join(DEmarkersP2M, lncRNAs, by="gene_name")
+
+# Pull out significant DE lncRNAs per cluster: log2FC >1 (2-fold upregulation), adjpval <0.05.
+P1T2_sig_DE_lncRNAs_by_cluster <- inner_join(sigDEmarkersP1T2, lncRNAs, by="gene_name")
+P2T2_sig_DE_lncRNAs_by_cluster <- inner_join(sigDEmarkersP2T2, lncRNAs, by="gene_name")
+P2M_sig_DE_lncRNAs_by_cluster <- inner_join(sigDEmarkersP2M, lncRNAs, by="gene_name")
+
+# Pull out the slightly less significant DE lncRNAs per cluster: log2FC >0.6 (1.5-fold upregulation), adjpval <0.05
+P1T2_less_sig_DE_lncRNAs_by_cluster <- inner_join(less_sigDEmarkersP1T2, lncRNAs, by="gene_name")
+P2T2_less_sig_DE_lncRNAs_by_cluster <- inner_join(less_sigDEmarkersP2T2, lncRNAs, by="gene_name")
+P2M_less_sig_DE_lncRNAs_by_cluster <- inner_join(less_sigDEmarkersP2M, lncRNAs, by="gene_name")
+```
+
+#### Saving lncRNA lists
+Adds a "sampleID" column for the less stringently filtered groups (log2FC >0.6 (1.5-fold upregulation), adjpval <0.05), so I can see where each list came from when I concatenate the data
+```{r lncRNA lists}
+P1T2_less_sig_DE_lncRNAs_by_cluster$sampleID <- "P1T2"
+# P2T2_less_sig_DE_lncRNAs_by_cluster$sampleID <- "P2T2" # This data frame is empty - need to check if created/loaded correctly
+# P2M_less_sig_DE_lncRNAs_by_cluster$sampleID <- "P2M" # This data frame is empty - need to check if created/loaded correctly
+# Maybe the empty data frames mean there are no sig DE lncs in these tumours that meet the threshold?, perhaps I comment them out for now
+
+# Concatentate the data for the less stringently filtered group (log2FC >0.6 (1.5-fold upregulation), adjpval <0.05).
+all_less_sig_DE_lncRNAs <- bind_rows(
+         P1T2_less_sig_DE_lncRNAs_by_cluster,
+         P2T2_less_sig_DE_lncRNAs_by_cluster,
+         P2M_less_sig_DE_lncRNAs_by_cluster
+          )
+write.csv(all_less_sig_DE_lncRNAs, "Seurat_sig_DE_lncRNAs_log2FC>0.6_padj<0.05.csv")
+
+# Add a "sampleID" column for the least stringently filtered group (log2FC = no cutoff, p>0.05 (not padj)) - so I can see where each list came from when I concatenate the data
+P1T2_lncRNAs_by_cluster$sampleID <- "P1T2"
+P2T2_lncRNAs_by_cluster$sampleID <- "P2T2"
+P2M_lncRNAs_by_cluster$sampleID <- "P2M"
+
+# Concatentate the data for the least stringently filtered group (log2FC = no cutoff, p>0.05 (not padj)).
+all_DE_lncRNAs <- bind_rows( 
+                                     P1T2_lncRNAs_by_cluster,
+                                     P2T2_lncRNAs_by_cluster,
+                                     P2M_lncRNAs_by_cluster
+)
+
+write.csv(all_DE_lncRNAs, "Seurat_DE_lncRNAs_p<0.05(not_padj)_no_log2FC_cutoff.csv") 
+
+# Add a "sampleID" column for the spatially variable lncRNAs so I can see where each list came from when I concatenate the data
+P1T2_spatially_variable_lncRNAs$sampleID <- "P1T2"
+P2T2_spatially_variable_lncRNAs$sampleID <- "P2T2"
+P2M_spatially_variable_lncRNAs$sampleID <- "P2M"
+
+# Concatentate the data for the spatially variable lncRNAs
+all_spatially_variable_lncRNAs <- bind_rows(
+                            P1T2_spatially_variable_lncRNAs, 
+                            P2T2_spatially_variable_lncRNAs,
+                            P2M_spatially_variable_lncRNAs
+)
+
+write.csv(all_spatially_variable_lncRNAs, "Seurat_spatially_variable_lncRNAs.csv")
+
+# Add a "sampleID" column for the significantly spatially variable lncRNAs so I can see where each list came from when I concatenate the data
+P1T2_sig_spatially_variable_lncRNAs$sampleID <- "P1T2"
+P2T2_sig_spatially_variable_lncRNAs$sampleID <- "P2T2"
+P2M_sig_spatially_variable_lncRNAs$sampleID <- "P2M"
+
+# Concatentate the data for the significantly spatially variable lncRNAs
+all_sig_spatially_variable_lncRNAs <- bind_rows(
+                                            P1T2_sig_spatially_variable_lncRNAs, 
+                                            P2T2_sig_spatially_variable_lncRNAs,
+                                            P2M_sig_spatially_variable_lncRNAs
+)
+
+write.csv(all_sig_spatially_variable_lncRNAs, "Seurat_significant_spatially_variable_lncRNAs.csv")
+
+all_less_sig_DE_lncRNAs
+all_DE_lncRNAs
+all_spatially_variable_lncRNAs
+all_sig_spatially_variable_lncRNAs
+
+```
+Holly's comments regarding this at end of 6_lncRNA_metrics:
+- These csv files can now be read into the common lncRNAs between datasets script that I will now update because was truly horrid.
+- This script will be in /Volumes/archive/diermeierlab/Holly/lncRNA_potential_candidates
+
+Adjustments I have made when processing her code into this document:
+- I have only taken the data from P1T2, P2T2, and P2M (excluding the other data sources as recommended from the beginning, these three have highest data quality I was informed before beginning).
+
+Issue/shortcut here:
+The dataframes for P2T2_less_sig_DE_lncRNAs_by_cluster and P2M_less_sig_DE_lncRNAs_by_cluster were empty (0 rows), so I have commented them out. The final data frames/CSV files following on from this are thus only based on P1T2 data.

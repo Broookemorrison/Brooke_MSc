@@ -1,0 +1,100 @@
+---
+title: "MIR4435-2HG exon 1 ASO re-design"
+author: "Brooke Morrison"
+date: "`r Sys.Date()`"
+output: html_document
+---
+In this document I am taking the Sfold output generated for exon 1 of KCNQ1OT1 (actually exon 1 this time), filtering it based on the ASO pipeline from Zohaib, and saving it as a fasta file. 
+
+```{r, message = FALSE}
+# Loading packages
+library(stringr)
+library(Biostrings)
+```
+
+```{r}
+# Loading in data
+Unfiltered_exon1_Sfold_M <- read.table("/Volumes/diermeierlab/from_archive/Brooke_MSc/data/ASO_redesign/MIR4435_realExon1_output/output/oligo.txt", header = FALSE, sep = "", fill = TRUE)
+```
+
+```{r}
+# Labeling the rows
+rownames(Unfiltered_exon1_Sfold_M) <- Unfiltered_exon1_Sfold_M[ , 1]
+Unfiltered_exon1_Sfold_M <- Unfiltered_exon1_Sfold_M[, -1]
+head(Unfiltered_exon1_Sfold_M)
+nrow(Unfiltered_exon1_Sfold_M) #167 to start
+```
+
+```{r}
+# Removing GGGG indicator
+Processed_exon1_Sfold_M <- Unfiltered_exon1_Sfold_M[ , -6]
+
+# Going to add column labels
+colnames(Processed_exon1_Sfold_M) <- c("Target position (start-end)", "Target sequence (5'-3')", "Antisense oligo (5'-3')", "GC content", "Oligo binding energy (kcal/mol")
+head(Processed_exon1_Sfold_M)
+nrow(Processed_exon1_Sfold_M)  
+```
+
+```{r}
+# Filtering for GC content 40-60%
+Processed_exon1_Sfold_M <- Processed_exon1_Sfold_M[Processed_exon1_Sfold_M[, 4] >= 40 & Processed_exon1_Sfold_M[, 4] <= 60, ]
+nrow(Processed_exon1_Sfold_M) 
+```
+
+
+```{r}
+# Filtering for binding energy less than -5
+Processed_exon1_Sfold_M <- Processed_exon1_Sfold_M[Processed_exon1_Sfold_M[, 5] < -5, ]
+head(Processed_exon1_Sfold_M)
+nrow(Processed_exon1_Sfold_M) #8 of them
+```
+
+```{r}
+# Looking for diminishing and enhancing motifs
+enhancing_motifs <- c("CCAC", "TCCC", "ACTC", "GCCA", "CTCT")
+diminishing_motifs <- c("GGGG", "ACTG", "AAA", "TAA")
+
+# Are any enhancing motifs present?
+Processed_exon1_Sfold_M$EnhancingMotif_Present <- sapply(Processed_exon1_Sfold_M$`Antisense oligo (5'-3')`, function(seq) {
+  any(str_detect(seq, enhancing_motifs))
+})
+
+# Are any diminishing motifs present?
+Processed_exon1_Sfold_M$DiminishingMotif_Present <- sapply(Processed_exon1_Sfold_M$`Antisense oligo (5'-3')`, function(seq) {
+  any(str_detect(seq, diminishing_motifs))
+})
+
+# None of them have enhancing or diminishing motifs
+```
+
+Are any of these also present in oligo_de.out file? - Going to load in this file, and use intersect function to see if any are present in both.
+
+```{r}
+oligo_de.txt.M <- read.table("/Volumes/diermeierlab/from_archive/Brooke_MSc/data/ASO_redesign/MIR4435_realExon1_output/output/oligo_de.txt", header = FALSE, sep = "", fill = TRUE)
+
+colnames(oligo_de.txt.M) <- c("Starting target position", "Ending target position", "target sequence (5'-3')", "Anti-sense oligo (5'-3')", "GC content", "Average unpaired propbability for target site nucleotides", "Binding site disruption energy")
+
+shared_ASOs.M <- intersect(Processed_exon1_Sfold_M$`Antisense oligo (5'-3')`, oligo_de.txt.M$`Anti-sense oligo (5'-3')`)
+shared_ASOs.M # 3 of them
+
+shared_ASO_df.M <- Processed_exon1_Sfold_M[Processed_exon1_Sfold_M$`Antisense oligo (5'-3')` %in% shared_ASOs.M, ]
+
+shared_ASO_df.M
+```
+
+```{r}
+# Save the output as a fasta file (using Biostrings)
+
+# Putting it into a seq ID, and sequence format
+ASO_df.M <- data.frame(
+  names = c("Exon1_1", "Exon1_2", "Exon1_3"),
+  sequences = c("AGATCTGAAGACAGGCACGG", "AAGATCTGAAGACAGGCACG", "TGTGAAGATCTGAAGACAGG")
+)
+
+# Converting df to DNAStringSet object
+sequences <- DNAStringSet(ASO_df.M$sequences)
+names(sequences) <- ASO_df.M$names
+
+# Write DNAStringSet object to FASTA file
+writeXStringSet(sequences, filepath = "MIR_Real_Exon1_ASOs.fasta")
+```

@@ -1,0 +1,53 @@
+---
+title: "KCNQ1OT1 exon 1 ASO redesign"
+author: "Brooke Morrison"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+In this document I am taking the Sfold output generated for exon 1 of KCNQ1OT1 (actually exon 1 this time), filtering it based on the ASO pipeline from Zohaib, and saving it as a fasta file. 
+
+```{r, message = FALSE}
+# Loading packages
+library(stringr)
+library(Biostrings)
+```
+
+
+```{r}
+# Loading in data
+Unfiltered_exon1_Sfold <- read.table("/Volumes/diermeierlab/from_archive/Brooke_MSc/data/ASO_redesign/KCNQ1OT1_actualExon1/output/oligo.txt", header = FALSE, sep = "", fill = TRUE)
+```
+
+```{r}
+# Labeling the rows
+rownames(Unfiltered_exon1_Sfold) <- Unfiltered_exon1_Sfold[ , 1]
+Unfiltered_exon1_Sfold <- Unfiltered_exon1_Sfold[, -1]
+head(Unfiltered_exon1_Sfold)
+nrow(Unfiltered_exon1_Sfold) 
+```
+
+```{r}
+# Removing GGGG indicator
+Processed_exon1_Sfold <- Unfiltered_exon1_Sfold[ , -6]
+
+# Going to add column labels
+colnames(Processed_exon1_Sfold) <- c("Target position (start-end)", "Target sequence (5'-3')", "Antisense oligo (5'-3')", "GC content", "Oligo binding energy (kcal/mol")
+head(Processed_exon1_Sfold)
+nrow(Processed_exon1_Sfold) #156 total ASO options
+```
+```{r}
+# Filtering for GC content 40-60%
+Processed_exon1_Sfold <- Processed_exon1_Sfold[Processed_exon1_Sfold[, 4] >= 40 & Processed_exon1_Sfold[, 4] <= 60, ]
+nrow(Processed_exon1_Sfold) #4 of them
+head(Processed_exon1_Sfold)
+ncol(Processed_exon1_Sfold)
+```
+
+```{r}
+# Filtering for binding energy less than -8
+Processed_exon1_Sfold <- Processed_exon1_Sfold[Processed_exon1_Sfold[, 5] < -8, ]
+head(Processed_exon1_Sfold)
+nrow(Processed_exon1_Sfold) #0 of them
+```
+So, none of the options so far have GC content of 40-60% and a binding energy of less than -8 kJ/mol. It doesn't look like any good ASOs are going to come from this.
